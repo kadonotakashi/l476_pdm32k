@@ -18,11 +18,13 @@
 //#define OFFSET_MAX	32768*32
 //#define OFFSET_MIN	-32768*32
 
-#define OFFSET_MAX	32768*32
-#define OFFSET_MIN	-32768*32
+//#define OFFSET_MAX	32768*32
+//#define OFFSET_MAX	16384*32
+#define OFFSET_MAX	8192*32
+#define OFFSET_MIN	- OFFSET_MAX
 
 
-#define	CALIB_COUNT_MAX	100
+#define	CALIB_COUNT_MAX	1000
 typedef struct{
 	volatile q31_t d32[DMA_SAMPLE_CNT];
 }W32_BUF;

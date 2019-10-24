@@ -153,6 +153,7 @@ bool canselOffset(int ch,int32_t avg){
 	DFSDM_Channel_TypeDef          *Instance;
 
 	//select channerl
+
 	switch(ch){
 		case 0:
 			pHDFSDM_CHX = (DFSDM_Channel_HandleTypeDef *)&hdfsdm1_channel0;			break;
@@ -167,7 +168,7 @@ bool canselOffset(int ch,int32_t avg){
 	avg &= 0xffffff00;
 
 	offset = (Instance->CHCFGR2) & 0xffffff00;
-	offset += avg;
+	offset += avg/4;
 
 	Instance->CHCFGR2 &= 0x000000ff;
 	Instance->CHCFGR2 |= offset;
@@ -178,6 +179,7 @@ bool canselOffset(int ch,int32_t avg){
 
 void sencorCalibrate(int *flag){
 	int32_t avg;
+
 
 	if (*flag & 0x01){
 		getAvg32(0,&avg);
@@ -216,8 +218,9 @@ void tk_sns(void const * argument)
 
     MicGainCH0	= 64;
     MicGainCH1	= 64;
-    MicGainShiftCH0	= 5;
-    MicGainShiftCH1 = 5;
+    MicGainShiftCH0	= 8;
+    MicGainShiftCH1 = 8;
+
 
 //start sample & DMA transfer
     half_flag = true;
@@ -259,7 +262,7 @@ void tk_sns(void const * argument)
 
         half_flag=true;
         LocalQueue=0;	//first half
-    	xQueueSendToBack(QueSendHandle,&LocalQueue,10);
+    	xQueueSendToBack(QueSendHandle,&LocalQueue,1);
 
 
     	while (cmplt_flag==true){		//wait second half DMA complete
@@ -268,7 +271,7 @@ void tk_sns(void const * argument)
 		GetWaveData_SecondHalf();
         cmplt_flag=true;
         LocalQueue=1;	//second harf
-    	xQueueSendToBack(QueSendHandle,&LocalQueue,10);
+    	xQueueSendToBack(QueSendHandle,&LocalQueue,1);
 
 #ifdef DAout
 		if((DACSTART_FLAG==0)&&(SNS_STS == SNS_READY)){
@@ -311,8 +314,11 @@ HAL_GPIO_TogglePin(DEBP1_GPIO_Port,DEBP1_Pin);
     arm_scale_q31 (pSRC, MicGain, MicGainShiftCH1, (q31_t *)pWORK, (DMA_SAMPLE_CNT/2));
     arm_q31_to_q15((q31_t *)pWORK, (q15_t *)&pW16B1->d16[0],(DMA_SAMPLE_CNT/2));
 //    arm_add_q31((q31_t *)pWORK,(q31_t *)pSUMBUF,(q31_t *)pSUMBUF,DMA_SAMPLE_CNT/2);
+#ifdef CARDIOID
     arm_sub_q31((q31_t *)pWORK,(q31_t *)pSUMBUF,(q31_t *)pSUMBUF,DMA_SAMPLE_CNT/2);
-
+#else
+    arm_add_q31((q31_t *)pWORK,(q31_t *)pSUMBUF,(q31_t *)pSUMBUF,DMA_SAMPLE_CNT/2);
+#endif
     arm_q31_to_q15((q31_t *)pSUMBUF,  (q15_t *)&pW16BSUM->d16[0],(DMA_SAMPLE_CNT/2));	//int32_t -> int16_t
     arm_shift_q15( (q15_t *)&pW16BSUM->d16[0],-4,  (q15_t *)&pDACBUF->d12[0],DMA_SAMPLE_CNT/2);				//int16_t -> int12_t
     arm_offset_q15( (q15_t *)&pDACBUF->d12[0],2048 , (q15_t *)&pDACBUF->d12[0],DMA_SAMPLE_CNT/2);			//int12_t -> uint12_t;
@@ -334,16 +340,22 @@ HAL_GPIO_TogglePin(DEBP1_GPIO_Port,DEBP1_Pin);
 
     arm_scale_q31 (pSRC, MicGain, MicGainShiftCH0, (q31_t *)pWORK, (DMA_SAMPLE_CNT/2));
     arm_q31_to_q15((q31_t *)pWORK, (q15_t *)&pW16B0->d16[DMA_SAMPLE_CNT/2],(DMA_SAMPLE_CNT/2));			//to signed 16bit
-    arm_copy_q31(pSRC,(q31_t *)pSUMBUF,DMA_SAMPLE_CNT/2);
+    arm_copy_q31((q31_t *)pWORK,(q31_t *)&pSUMBUF->d32[DMA_SAMPLE_CNT/2],DMA_SAMPLE_CNT/2);
 
     MicGain = MicGainCH1 * 0x1000000;
     pSRC=(int32_t *)(&pDFSDMBUF->d32[1][1]);	//DFSDM buffer Block 1 & Block 2
     arm_scale_q31 (pSRC, MicGain, MicGainShiftCH1, (q31_t *)pWORK, (DMA_SAMPLE_CNT/2));
     arm_q31_to_q15((q31_t *)pWORK, (q15_t *)&pW16B1->d16[DMA_SAMPLE_CNT/2],(DMA_SAMPLE_CNT/2));
 //    arm_add_q31((q31_t *)pWORK, (q31_t *)pSUMBUF, (q31_t *)&pSUMBUF[DMA_SAMPLE_CNT/2], DMA_SAMPLE_CNT/2);
-    arm_sub_q31((q31_t *)pWORK, (q31_t *)pSUMBUF, (q31_t *)pSUMBUF, DMA_SAMPLE_CNT/2);
 
-    arm_q31_to_q15((q31_t *)pSUMBUF,  (q15_t *)&pW16BSUM->d16[DMA_SAMPLE_CNT/2],(DMA_SAMPLE_CNT/2));	//int32_t -> int16_t
+#ifdef CARDIOID
+    arm_sub_q31((q31_t *)pWORK, (q31_t *)&pSUMBUF->d32[DMA_SAMPLE_CNT/2], (q31_t *)&pSUMBUF->d32[DMA_SAMPLE_CNT/2], DMA_SAMPLE_CNT/2);
+
+#else
+    arm_add_q31((q31_t *)pWORK, (q31_t *)&pSUMBUF->d32[DMA_SAMPLE_CNT/2], (q31_t *)&pSUMBUF->d32[DMA_SAMPLE_CNT/2], DMA_SAMPLE_CNT/2);
+#endif
+
+    arm_q31_to_q15((q31_t *)&pSUMBUF->d32[DMA_SAMPLE_CNT/2],  (q15_t *)&pW16BSUM->d16[DMA_SAMPLE_CNT/2],(DMA_SAMPLE_CNT/2));	//int32_t -> int16_t
     arm_shift_q15( (q15_t *)&pW16BSUM->d16[DMA_SAMPLE_CNT/2],-4, (q15_t *)&pDACBUF->d12[DMA_SAMPLE_CNT/2],DMA_SAMPLE_CNT/2);				//int16_t -> int12_t
     arm_offset_q15( (q15_t *)&pDACBUF->d12[DMA_SAMPLE_CNT/2],2048, (q15_t *)&pDACBUF->d12[DMA_SAMPLE_CNT/2],DMA_SAMPLE_CNT/2);			//int12_t -> uint12_t;
 HAL_GPIO_TogglePin(DEBP1_GPIO_Port,DEBP1_Pin);
@@ -389,12 +401,11 @@ void HAL_DFSDM_FilterRegConvCpltCallback(DFSDM_Filter_HandleTypeDef *hdfsdm_filt
 	if(hdfsdm_filter->Instance==DFSDM1_Filter0){
 
 		cmplt_flag = false;
-
-//		HAL_GPIO_TogglePin(DEBP1_GPIO_Port,DEBP1_Pin);
+//HAL_GPIO_TogglePin(DEBP0_GPIO_Port,DEBP0_Pin);
 	}
 	if(hdfsdm_filter->Instance==DFSDM1_Filter1){
 //		cmplt_flag = false;
-//		HAL_GPIO_TogglePin(DEBP1_GPIO_Port,DEBP1_Pin);
+//HAL_GPIO_TogglePin(DEBP0_GPIO_Port,DEBP0_Pin);
 	}
 
 }

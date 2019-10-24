@@ -372,30 +372,11 @@ void tk_com(void const * argument)
 				///////////////////////////first half
 				if(0==LocalQue){
 
-
-#if 0
-					//HAL_GPIO_TogglePin(DEBP0_GPIO_Port,DEBP0_Pin);
+//HAL_GPIO_TogglePin(DEBP0_GPIO_Port,DEBP0_Pin);
 					while(TxCmpleteFlag==0){	// wait for ch1.second half complete
 						osDelay(1);
 					}
-
-					TxCmpleteFlag=0;
-					send_data( (char *)&pW16B0->d16[0], 1024);
-					send_block++;
-
-					//HAL_GPIO_TogglePin(DEBP0_GPIO_Port,DEBP0_Pin);
-					while(TxCmpleteFlag==0){	// wait for ch1.second half complete
-						osDelay(1);
-					}
-					TxCmpleteFlag=0;
-					send_data( (char *)&pW16B1->d16[0], 1024);
-					send_block++;
-
-#endif
-					//HAL_GPIO_TogglePin(DEBP0_GPIO_Port,DEBP0_Pin);
-					while(TxCmpleteFlag==0){	// wait for ch1.second half complete
-						osDelay(1);
-					}
+//HAL_GPIO_TogglePin(DEBP0_GPIO_Port,DEBP0_Pin);
 
 					TxCmpleteFlag=0;
 					send_data( (char *)&pW16BSUM->d16[0], 1024);
@@ -404,28 +385,20 @@ void tk_com(void const * argument)
 				}
 				////////////////////////////second half
 				else if(1==LocalQue){
-//HAL_GPIO_TogglePin(DEBP1_GPIO_Port,DEBP1_Pin);
-				while(TxCmpleteFlag==0){	// wait for ch1.second half complete
-					osDelay(1);
-				}
+//HAL_GPIO_TogglePin(DEBP0_GPIO_Port,DEBP0_Pin);
+					while(TxCmpleteFlag==0){	// wait for ch1.second half complete
+						osDelay(1);
+					}
+//HAL_GPIO_TogglePin(DEBP0_GPIO_Port,DEBP0_Pin);
 
 					TxCmpleteFlag=0;
-					send_data((char *) &pW16B0->d16[(DMA_SAMPLE_CNT/2)], 1024);
+					send_data( (char *)&pW16BSUM->d16[(DMA_SAMPLE_CNT/2)], 1024);
 					send_block++;
-
-//HAL_GPIO_TogglePin(DEBP1_GPIO_Port,DEBP1_Pin);
-				while(TxCmpleteFlag==0){	// wait for ch1.second half complete
-					osDelay(1);
-				}
-
-					TxCmpleteFlag=0;
-					send_data( (char *)&pW16B1->d16[(DMA_SAMPLE_CNT/2)], 1024);
-					send_block++;
-
 				}
 				else{
-
 				}
+
+
 				if(	send_block >= send_block_max *4 ){
 					DataTxEn=0;
 				}
